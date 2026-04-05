@@ -1,0 +1,67 @@
+# 권장: Windows + Python 3.14 에서는 휠 미비로 asyncpg/tiktoken 빌드 실패 → Python 3.11/3.12 사용 또는 하단 [optional] 참고
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+# pydantic-core 휠 없을 때 소스 빌드(Rust) 필요 → 버전 완화로 휠 있는 버전 사용
+pydantic>=2.5,<3
+pydantic-settings>=2.5,<3
+
+# Database
+sqlalchemy[asyncio]==2.0.36
+# PostgreSQL 사용 시만 설치 (Python 3.14/Windows 에서는 휠 없으면 VC++ 빌드 필요 → Python 3.11/3.12 권장)
+# pip install asyncpg  # 필요 시 별도 설치
+aiosqlite==0.20.0
+alembic==1.13.3
+
+# LLM (OpenAI only)
+openai>=1.109.1,<3.0.0
+
+# Agent orchestration (LangGraph)
+langgraph>=0.2.0,<1.0.0
+langchain-core>=0.3.0
+langchain-openai>=0.2.0
+langchain-chroma>=0.1.0
+langchain-community>=0.3.0
+chromadb>=0.5.0
+rank_bm25>=0.2.2
+# RAG 임베딩 (src.rag.vector.bge_embedder) — 미설치 시 FastAPI 기동 시 import 실패
+# MCP 앱 코드는 backend/mcp_service (공식 PyPI `mcp` 패키지와 이름 충돌 방지)
+sentence-transformers>=2.2.0,<6.0.0
+# 토큰 카운트용. 없어도 openai 동작 가능 (Python 3.14/Windows 에서는 휠 없으면 Rust 빌드 필요)
+# pip install tiktoken  # 필요 시 별도 설치
+
+# File parsing
+pypdf==5.0.1
+python-docx==1.1.2
+openpyxl==3.1.5
+# Windows 등에서 pre-built wheel 사용 (소스 빌드 시 VS Build Tools 필요)
+pandas>=2.0.0,<3
+
+# File upload
+python-multipart==0.0.12
+aiofiles==24.1.0
+
+# MCP (Model Context Protocol — 공식 SDK; backend 루트에 빈 `mcp/` 폴더를 두면 가려지므로 사용하지 않음)
+mcp>=1.0.0,<2.0.0
+
+# Java GraphRAG (Neo4j) + Java AST 적재
+neo4j>=5.14.0,<6.0.0
+certifi>=2024.0.0
+javalang>=0.13.0,<0.14.0
+
+# HTTP
+httpx==0.27.2
+
+# Retry
+tenacity==9.0.0
+
+# Logging
+python-json-logger==2.0.7
+
+# Storage
+boto3==1.35.44
+
+# Rate limiting
+slowapi==0.1.9
+
+# Scheduler (file expiry)
+apscheduler==3.10.4

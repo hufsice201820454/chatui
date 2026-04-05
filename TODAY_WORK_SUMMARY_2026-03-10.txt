@@ -1,0 +1,115 @@
+ChatUI 작업 정리 (2026-03-10)
+
+1) 목표
+- 프론트 채팅에서 이미지 업로드 + 질의 시 이미지 분석이 실제로 동작하도록 수정.
+- MCP 서버/툴 구조 정리(oracle + image parser + plus).
+- 내부망 환경(SSE 기반 MCP)과 현재 개발 환경 충돌 이슈 정리.
+
+2) 주요 코드 변경 사항
+
+[Frontend]
+- 이미지 첨부 전달 경로 보강:
+  - 전송 시 blob URL -> data URL 변환 로직 추가.
+  - 마지막 user 메시지의 file/image 파트에서 이미지 추출 강화.
+  - body.images 보강 전송(메시지 파싱 실패 시 fallback 용도).
+- 결과:
+  - /api/chat 요청에 images 배열이 포함되도록 개선.
+
+[Backend - Chat Route]
+- 파일: backend/app/api/routes/chat.py
+- 변경:
+  - 이미지가 있을 때 기존 vision_parser 직접 호출 경로를 MCP 이미지 툴 호출 경로로 전환.
+  - plus(덧셈) 패턴 분기 유지(숫자+숫자 요청 시 MCP plus 툴 호출).
+  - 이미지 분석 실패 시 경고 로그 + fallback 메시지 유지.
+
+[Backend - MCP 구조]
+- 신규 구조 생성:
+  - backend/app/mcp/tools/__init__.py
+  - backend/app/mcp/tools/oracle.py
+  - backend/app/mcp/tools/image_parser.py
+  - backend/app/mcp/tools/plus.py
+- 파일: backend/app/mcp/server.py
+  - 인라인 툴 정의 제거 후 register 방식으로 통일.
+  - oracle.register(mcp), image_parser.register(mcp), plus.register(mcp)
+  - SSE 서버 실행: mcp.run(transport=\"sse\")
+  - host/port는 FastMCP 생성자에서 설정하도록 수정:
+    mcp = FastMCP(\"chatui-mcp-server\", host=\"localhost\", port=8001)
+
+[Backend - MCP Client]
+- 파일: backend/app/mcp/client.py
+- 변경:
+  - sse_client + ClientSession 기반 툴 호출 구현.
+  - call_plus_via_mcp / call_image_parse_via_mcp 제공.
+  - MCP_SSE_URL 설정이 없을 때 기본값 사용하도록 안전 처리:
+    getattr(settings, \"MCP_SSE_URL\", None) or \"http://localhost:8001/sse\"
+  - tool error 시 원인 텍스트 포함해 에러 전달 강화.
+
+[Backend - Vision Client]
+- 파일: backend/app/llm/vision_client.py
+- 변경:
+  - 내부망 Vision 설정(API_KEY + VISION_BASE_URL)이 없으면
+    OpenAI 설정(OPENAI_API_KEY/OPEN_API_KEY + optional OPEN_BASE_URL)으로 fallback.
+
+[Backend - Config]
+- 파일: backend/app/core/config.py
+- MCP_SSE_URL(Optional) 필드 추가.
+
+3) 오늘 발생한 주요 이슈/원인/해결
+
+이슈 A) 이미지 업로드 시 \"이미지를 분석할 수 없다\" 응답
+- 원인:
+  - 프론트 이미지 파트 전달 형식(blob/dataURL) 불일치 + 백엔드 수신 누락 케이스.
+- 조치:
+  - 프론트에서 이미지 변환/추출 로직 보강.
+  - body.images 우선 수신 처리 추가.
+  - 백엔드 이미지 파이프라인을 MCP 툴 경로로 통일.
+
+이슈 B) MCP 실행 오류들
+- ModuleNotFoundError / import 오류:
+  - mcp 패키지와 app.mcp 경로 혼용, 심볼 import 불일치.
+  - register 함수 패턴으로 정리.
+- run_stdio 없음:
+  - 현재 SDK 인터페이스와 예제 코드 불일치.
+- Already running asyncio:
+  - event loop 중첩 호출.
+- FastMCP.run(host=...) TypeError:
+  - 현 버전 run()은 host/port 인자를 받지 않음.
+  - host/port를 FastMCP 생성자에 설정하도록 수정.
+
+이슈 C) websockets-sansio / uvicorn 충돌
+- 원인:
+  - fastmcp/mcp가 요구하는 uvicorn/httpx/starlette 버전과
+    FastAPI requirements 충돌.
+- 현재 방향:
+  - 코드 레벨은 SSE 기준으로 맞춰둠.
+  - 실행 환경은 버전 충돌 주의 필요(venv 분리 권장).
+
+4) 현재 동작 상태
+- 최신 확인 기준:
+  - MCP 서버는 localhost:8001에서 SSE로 기동 확인.
+  - 백엔드 채팅 요청에서 has_images=1 확인.
+  - 툴 호출 로그(CallToolRequest) 확인.
+  - 이후 MCP 이미지 툴 실패 원인은 MCP_SSE_URL 접근 버그였고 수정 완료.
+  - 최종적으로 이미지 분석 응답이 정상적으로 출력되는 화면 확인됨.
+
+5) 실행 가이드(현재 기준)
+
+[MCP 서버]
+cd C:\\workspace\\AI\\chatui\\backend
+python -m app.mcp.server
+
+[백엔드]
+cd C:\\workspace\\AI\\chatui\\backend
+python -m app.main
+
+[프론트]
+cd C:\\workspace\\AI\\chatui\\frontend
+npm run dev
+
+6) 남은 권장 작업
+- FastAPI/fastmcp 의존성 충돌을 피하기 위한 venv 분리/고정 버전 전략 문서화.
+- app/files/analyze-image 경로도 MCP image tool 경유로 완전 통일(현재 채팅 경로 우선 반영).
+- 서버 시작 스크립트(backend+mcp+frontend) 일괄화.
+
+작성 파일:
+- C:\\workspace\\AI\\chatui\\TODAY_WORK_SUMMARY_2026-03-10.txt

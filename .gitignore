@@ -1,0 +1,47 @@
+# Secrets — 절대 커밋하지 마세요
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Node / Next
+node_modules/
+.next/
+out/
+build/
+.turbo/
+*.tsbuildinfo
+
+# Backend 캐시 (git clone된 MES 등)
+backend/.cache/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# 로컬 DB·업로드·벡터 저장소
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+backend/uploads/
+backend/chroma/
+
+# 로그
+*.log
+backend/logs/
+frontend/*.log
+
+# 대용량 백업 zip
+*.zip
