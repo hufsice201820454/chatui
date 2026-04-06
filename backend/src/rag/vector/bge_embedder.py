@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import List
 
 from sentence_transformers import SentenceTransformer
+from src.core.llm.embedding_class import EmbeddingClass
 
 
-class BgeM3Embedder:
+class BgeM3Embedder(EmbeddingClass):
     """
     BGE-M3 임베딩 전용 래퍼.
 
@@ -14,8 +15,14 @@ class BgeM3Embedder:
     """
 
     def __init__(self, device: str = "cpu"):
+        super().__init__(
+            api_key=None,
+            base_url=None,
+            base_model="BAAI/bge-m3",
+            tiktoken_enabled=False,
+        )
         # lazy load 도 가능하지만, 단순화를 위해 생성 시 로드
-        self._model = SentenceTransformer("BAAI/bge-m3", device=device)
+        self._model = SentenceTransformer(self.base_model, device=device)
 
     def embed_query(self, query: str) -> List[float]:
         emb = self._model.encode(query, normalize_embeddings=True)

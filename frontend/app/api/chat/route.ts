@@ -258,14 +258,6 @@ export async function POST(req: Request) {
                     const lgThreadId = (event as any).thread_id ?? threadId;
                     const rejectCount = (event as any).reject_count ?? 0;
 
-                    if (draft) {
-                      if (!textStarted) {
-                        controller.enqueue(encoder.encode(sseLine({ type: "text-start", id: TEXT_PART_ID })));
-                        textStarted = true;
-                      }
-                      controller.enqueue(encoder.encode(sseLine({ type: "text-delta", id: TEXT_PART_ID, delta: draft })));
-                    }
-
                     // AUI thread_id(threadId)를 키로 HITL 상태 저장
                     hitlStateMap.set(threadId, {
                       thread_id: lgThreadId,
