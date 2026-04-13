@@ -8,8 +8,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
+from config import settings
 from src.workflow.v1_0.state import AgentState
-from src.rag.rag_pipeline import API_KEY, BASE_URL, MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +30,13 @@ _PROMPT = ChatPromptTemplate.from_messages([
 
 
 def _build_chat() -> ChatOpenAI:
+    api_key = getattr(settings, "OPENAI_API_KEY", None) or getattr(settings, "OPEN_API_KEY", None)
+    base_url = getattr(settings, "OPEN_BASE_URL", None) or getattr(settings, "BASE_URL", None)
+    model_name = getattr(settings, "OPENAI_MODEL", None) or "gpt-4o-mini"
     return ChatOpenAI(
-        api_key=API_KEY,
-        model=MODEL_NAME,
-        base_url=BASE_URL,
+        api_key=api_key,
+        model=model_name,
+        base_url=base_url,
         temperature=0,
     )
 

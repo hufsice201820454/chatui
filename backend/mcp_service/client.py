@@ -1,17 +1,34 @@
-import re
+import os
+import sys
 from typing import Any
 
+from mcp import StdioServerParameters
 from mcp.client.session import ClientSession
-from mcp.client.sse import sse_client
+from mcp.client.stdio import stdio_client
 
-from config import settings
+from config import BACKEND_ROOT, resolve_backend_path, settings
 
-DEFAULT_MCP_SSE_URL = "http://localhost:8001/sse"
+
+def _mcp_subprocess_env() -> dict[str, str]:
+    """부모 프로세스 환경을 그대로 전달(API 키·경로 등). mcp stdio 기본 env는 최소 집합만 상속한다."""
+    return {k: v for k, v in os.environ.items() if isinstance(v, str)}
+
+
+def _stdio_server_params() -> StdioServerParameters:
+    command = (settings.MCP_SERVER_COMMAND or "").strip() or sys.executable
+    cwd_raw = (settings.MCP_SERVER_CWD or "").strip()
+    cwd = resolve_backend_path(cwd_raw) if cwd_raw else str(BACKEND_ROOT)
+    return StdioServerParameters(
+        command=command,
+        args=["-m", "mcp_service.server"],
+        cwd=cwd,
+        env=_mcp_subprocess_env(),
+    )
 
 
 async def _call_tool(name: str, arguments: dict[str, Any]) -> Any:
-    mcp_sse_url = getattr(settings, "MCP_SSE_URL", None) or DEFAULT_MCP_SSE_URL
-    async with sse_client(mcp_sse_url) as (read_stream, write_stream):
+    params = _stdio_server_params()
+    async with stdio_client(params) as (read_stream, write_stream):
         async with ClientSession(read_stream, write_stream) as session:
             await session.initialize()
             result = await session.call_tool(name, arguments=arguments)
@@ -39,23 +56,6 @@ async def _call_tool(name: str, arguments: dict[str, Any]) -> Any:
             return "\n".join(parts).strip()
 
     raise ValueError(f"Unexpected MCP tool result: {name}")
-
-
-async def call_plus_via_mcp(a: int, b: int) -> int:
-    raw = await _call_tool("plus", {"a": a, "b": b})
-    if isinstance(raw, dict):
-        for value in raw.values():
-            if isinstance(value, int):
-                return value
-            if isinstance(value, str) and value.isdigit():
-                return int(value)
-    if isinstance(raw, int):
-        return raw
-    if isinstance(raw, str):
-        m = re.search(r"-?\d+", raw)
-        if m:
-            return int(m.group(0))
-    raise ValueError(f"Could not parse plus result: {raw}")
 
 
 async def call_image_parse_via_mcp(image_base64: str, mime: str, user_query: str) -> str:
@@ -126,4 +126,3 @@ async def call_get_itsm_ticket_via_mcp(ticket_id: str) -> Any:
             "ticket_id": ticket_id,
         },
     )
-

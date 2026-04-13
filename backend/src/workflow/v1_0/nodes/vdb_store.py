@@ -7,16 +7,10 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
 
+from config import BACKEND_ROOT, resolve_backend_path, settings
+from src.rag.embeddings import Embedder
 from src.workflow.v1_0.state import AgentState
-from src.rag.rag_pipeline import (
-    API_KEY,
-    COLLECTION_NAME,
-    EMBEDDING_BASE_URL,
-    EMBEDDING_MODEL,
-    VDB_PATH,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +21,25 @@ _MIN_RESPONSE_LENGTH = 10
 _vdb_instance: Optional[Chroma] = None
 
 
+def _resolve_vdb_path() -> str:
+    override = getattr(settings, "RAG_CHROMA_PERSIST_DIR", None)
+    if override and str(override).strip():
+        resolved = resolve_backend_path(str(override).strip())
+        if resolved:
+            return resolved
+    return str(BACKEND_ROOT / "chroma")
+
+
+VDB_PATH = _resolve_vdb_path()
+COLLECTION_NAME = getattr(settings, "RAG_COLLECTION_NAME", None) or "itsm_openai_bge_m3_1024"
+EMBEDDING_MODEL = getattr(settings, "OPENAI_EMBEDDING_MODEL", None) or "bge-m3"
+
+
 def _get_vdb() -> Chroma:
     """Chroma 싱글턴 반환. 최초 호출 시에만 초기화."""
     global _vdb_instance
     if _vdb_instance is None:
-        embeddings = OpenAIEmbeddings(
-            api_key=API_KEY,
-            model=EMBEDDING_MODEL,
-            base_url=EMBEDDING_BASE_URL,
-            tiktoken_enabled=False,
-            check_embedding_ctx_length=False,
-        )
+        embeddings = Embedder(model_name=EMBEDDING_MODEL)
         _vdb_instance = Chroma(
             persist_directory=VDB_PATH,
             collection_name=COLLECTION_NAME,

@@ -92,8 +92,9 @@ class Settings(BaseSettings):
     OPENAI_EMBEDDING_MODEL: Optional[str] = None
     OPENAI_EMBEDDING_BASE_URL: Optional[str] = None
 
-    # MCP 클라이언트 (백엔드 → MCP SSE)
-    MCP_SSE_URL: Optional[str] = None
+    # MCP 클라이언트 (백엔드 → MCP stdio 서브프로세스)
+    MCP_SERVER_COMMAND: Optional[str] = None  # 비우면 현재 인터프리터(sys.executable)
+    MCP_SERVER_CWD: Optional[str] = None  # 비우면 backend 루트; 상대 경로는 BACKEND_ROOT 기준
 
     # Java GraphRAG (Neo4j) — URI 미설정 시 그래프 조회 생략·빈 컨텍스트 (.env 권장)
     NEO4J_URI: Optional[str] = None

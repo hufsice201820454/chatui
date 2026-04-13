@@ -6,19 +6,17 @@ from mcp_service.tools import (
     image_parser,
     oracle,
     pdf_parser,
-    plus,
     sqllite_db_tool,
 )
 
-mcp = FastMCP("chatui-mcp-server", host="localhost", port=8001)
+mcp = FastMCP("chatui-mcp-server")
 
 oracle.register(mcp)
 image_parser.register(mcp)
-plus.register(mcp)
 docx_parser.register(mcp)
 pdf_parser.register(mcp)
 excel_parser.register(mcp)
 sqllite_db_tool.register(mcp)
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    mcp.run(transport="stdio")
