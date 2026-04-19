@@ -101,6 +101,8 @@ class Settings(BaseSettings):
     NEO4J_USER: Optional[str] = None
     NEO4J_PASSWORD: Optional[str] = None
     NEO4J_DATABASE: Optional[str] = None
+    SONARQUBE_URL: Optional[str] = None
+    SONARQUBE_TOKEN: Optional[str] = None
     # 자동 탐색 결과가 비었거나 Aura ID만 나올 때 마지막에 시도할 논리 DB (Aura 기본은 neo4j).
     NEO4J_FALLBACK_DATABASE: str = "neo4j"
     # SSL: Windows/사내망에서 SSLCertVerificationError 나면 NEO4J_SSL_RELAXED=true (+s → +ssc)
@@ -117,6 +119,12 @@ class Settings(BaseSettings):
     JAVA_MES_GIT_CACHE_DIR: Optional[str] = None
     JAVA_MES_GIT_BRANCH: Optional[str] = None
     JAVA_MES_GIT_SHALLOW: bool = True
+
+    # AST GraphDB ingestion
+    INGEST_BASE_PATH: Optional[str] = None
+    INGEST_PROJECT_ID: str = "mes4u"
+    INGEST_PROJECT_NAME: str = "mes4u"
+    INGEST_BATCH_SIZE: int = 500
 
     # S3
     USE_S3: bool = False

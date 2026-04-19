@@ -1,18 +1,15 @@
 from __future__ import annotations
 
 """
-SQLite → BGE-M3 로컬 임베딩 → Chroma (itsm_bge_m3_chunks).
-
-`src.rag.rag_pipeline`(OpenAIEmbeddings) 과 차원이 다르므로, 동일 파이프라인을 쓰려면
-`ingest_openai_pipeline` 모듈을 실행하세요.
+SQLite -> OpenAI 호환 임베딩 -> Chroma.
 """
 from typing import Any, Dict, List
 
 from config import settings
+from src.rag.embeddings import Embedder
 from src.rag.rag_pipeline import VDB_PATH as RAG_VDB_PATH
 from src.utils.chunker import chunk_text, chunks_to_dicts
 
-from .bge_embedder import BgeM3Embedder
 from .chroma_store import ChromaStore
 from .sqlite_loader import load_sqlite_documents
 
@@ -21,11 +18,11 @@ def ingest_sqlite_to_chromadb(
     limit: int | None = None,
     chunk_size: int = 1000,
     overlap: int = 200,
-    collection_name: str = "itsm_bge_m3_chunks",
+    collection_name: str | None = None,
     persist_directory: str | None = None,
 ) -> None:
     """
-    SQLite ITSM 데이터 -> full_text -> chunk -> BGE-M3 임베딩 -> ChromaDB 저장.
+    SQLite ITSM 데이터 -> full_text -> chunk -> OpenAI 호환 임베딩 -> ChromaDB 저장.
     """
     if persist_directory is None:
         persist_directory = RAG_VDB_PATH
@@ -62,11 +59,14 @@ def ingest_sqlite_to_chromadb(
     if not chunk_texts:
         return
 
-    # 3) BGE-M3 임베딩
-    embedder = BgeM3Embedder()
+    # 3) OpenAI 호환 임베딩
+    embedding_model = getattr(settings, "OPENAI_EMBEDDING_MODEL", None) or "bge-m3"
+    embedder = Embedder(model_name=embedding_model)
     embeddings = embedder.embed_texts(chunk_texts)
 
     # 4) ChromaDB upsert (배치 제한)
+    if collection_name is None:
+        collection_name = getattr(settings, "RAG_COLLECTION_NAME", None) or "itsm_openai_bge_m3_1024"
     store = ChromaStore(collection_name=collection_name, persist_directory=persist_directory)
     batch_size = int(getattr(settings, "CHROMA_UPSERT_BATCH_SIZE", 5000))
     if batch_size <= 0:

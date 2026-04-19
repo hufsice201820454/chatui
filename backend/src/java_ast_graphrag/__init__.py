@@ -1,2 +1,0 @@
-"""Java AST GraphRAG package."""
-

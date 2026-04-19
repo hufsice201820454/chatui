@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import time
 from abc import ABC, abstractmethod
-from typing import Any
 
-import openai
+import requests
+from langchain_openai import OpenAIEmbeddings
 
 class EmbeddingClass(ABC):
     """
@@ -44,7 +45,7 @@ class EmbeddingClass(ABC):
         return self.embed_texts(texts)
 
 
-class OpenAIEmbedding(EmbeddingClass):
+class OpenAIEmbedding(OpenAIEmbeddings, EmbeddingClass):
     """
     OpenAI 호환 임베딩 공용 구현체.
     """
@@ -53,26 +54,82 @@ class OpenAIEmbedding(EmbeddingClass):
         self,
         *,
         api_key: str,
-        base_url: str | None = None,
-        base_model: str = "text-embedding-3-small",
-        tiktoken_enabled: bool | None = True,
-        client_kwargs: dict[str, Any] | None = None,
+        base_url: str,
+        base_model: str = "bge-m3",
+        tiktoken_enabled: bool | None = False,
+        dimensions: int | None = 1024,
+        max_retries: int = 3,
     ) -> None:
-        super().__init__(
+        OpenAIEmbeddings.__init__(
+            self,
+            model=base_model,
+            api_key=api_key,
+            base_url=base_url,
+            dimensions=dimensions,
+            tiktoken_enabled=tiktoken_enabled,
+            check_embedding_ctx_length=False,
+        )
+        EmbeddingClass.__init__(
+            self,
             api_key=api_key,
             base_url=base_url,
             base_model=base_model,
             tiktoken_enabled=tiktoken_enabled,
         )
-        kwargs = client_kwargs or {}
-        self._client = openai.OpenAI(api_key=api_key, base_url=base_url, **kwargs)
+        self.dimensions = dimensions
+        self.max_retries = max_retries
+
+    def _embed_impl(self, text: str | list[str]) -> requests.Response:
+        sess = requests.Session()
+        tg_url = f"{self.base_url.rstrip('/')}/embeddings"
+        http_header = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        http_body: dict[str, object] = {
+            "model": self.model,
+            "input": text,
+        }
+        if self.dimensions is not None:
+            http_body["dimensions"] = self.dimensions
+        return sess.post(tg_url, headers=http_header, json=http_body, timeout=60)
 
     def embed_query(self, query: str) -> list[float]:
-        resp = self._client.embeddings.create(model=self.base_model, input=query)
-        return resp.data[0].embedding  # type: ignore[no-any-return]
+        resp = self._embed_impl(query)
+        if resp.status_code != 200:
+            raise RuntimeError(f"Embedding API error: {resp.status_code} {resp.text}")
+        return resp.json()["data"][0]["embedding"]  # type: ignore[no-any-return]
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        resp = self._client.embeddings.create(model=self.base_model, input=texts)
-        return [d.embedding for d in resp.data]  # type: ignore[no-any-return]
+        results: list[list[float]] = []
+
+        for text in texts:
+            retry_count = 0
+            while retry_count <= self.max_retries:
+                try:
+                    text_input: str | list[str]
+                    if isinstance(text, str):
+                        text_input = [text]
+                    else:
+                        text_input = text
+
+                    resp = self._embed_impl(text_input)
+                    if resp.status_code == 429:
+                        time.sleep(5)
+                        retry_count += 1
+                        continue
+                    if resp.status_code != 200:
+                        raise RuntimeError(f"Embedding API error: {resp.status_code} {resp.text}")
+
+                    data = resp.json()
+                    results.append(data["data"][0]["embedding"])
+                    break
+                except Exception:
+                    retry_count += 1
+                    if retry_count > self.max_retries:
+                        raise
+                    time.sleep(3)
+
+        return results

@@ -36,6 +36,14 @@ logger = logging.getLogger("chatui.api.chat")
 
 MAX_VISION_CONTEXT_CHARS = 3500
 MAX_DOCUMENT_CONTEXT_CHARS = 8000
+CODE_REVIEW_ROUTE_KEYWORDS = [
+    "코드리뷰", "code review", "정적분석", "sonarqube", "소나큐브",
+    "quality gate", "코드 품질",
+]
+CODE_CHANGE_ROUTE_KEYWORDS = [
+    "코드 수정", "수정해줘", "리팩토링", "리팩터링", "구현해줘",
+    "버그 수정", "fix this", "implement",
+]
 
 
 class ImagePayload(BaseModel):
@@ -163,40 +171,20 @@ async def _build_mcp_context(
     return "\n\n".join(parts) if parts else None
 
 
-JAVA_KEYWORDS = [
-    "메서드", "클래스", "호출", "의존", "리팩토링", "리팩터",
-    "코드", "소스", "call chain", "영향 분석", "impact",
-    "중복", "복잡도", "테스트 생성", "단위 테스트", "junit",
-    "java", "서비스", "컨트롤러", "레포지토리",
-]
-
-JAVA_HIGH_CONFIDENCE_KEYWORDS = [
-    "call chain", "호출 체인", "영향 범위", "의존 관계",
-    "리팩토링 제안", "테스트 코드 생성", "코드 분석",
-]
-
-
-def _should_route_to_java_graph(query: str) -> bool:
-    q = (query or "").lower()
-    if not q.strip():
-        return False
-    if any(kw.lower() in q for kw in JAVA_HIGH_CONFIDENCE_KEYWORDS):
-        return True
-    return sum(1 for kw in JAVA_KEYWORDS if kw.lower() in q) >= 2
-
-
 def _should_route_to_agent(query: str) -> bool:
     """ITSM 관련 문의만 Agent/HITL 경로로 보낸다.
 
     일반 잡담/일반지식 질문은 기존 chat_stream 경로로 처리해
     ITSM 고정 프롬프트가 잘못 적용되는 것을 방지한다.
     """
-    if _should_route_to_java_graph(query):
-        return False
-
     q = (query or "").lower()
     if not q.strip():
         return False
+
+    if any(kw in q for kw in CODE_REVIEW_ROUTE_KEYWORDS):
+        return True
+    if any(kw in q for kw in CODE_CHANGE_ROUTE_KEYWORDS):
+        return True
 
     # high-confidence 시그널 우선
     if any(kw.lower() in q for kw in HIGH_CONFIDENCE_KEYWORDS):
@@ -230,57 +218,6 @@ async def chat_stream_endpoint(
         doc_count,
         len(body.message or ""),
     )
-
-    async def java_graph_event_generator():
-        yield f"data: {json.dumps({'type': 'start'})}\n\n"
-
-        async with AsyncSessionLocal() as sdb:
-            await repo.save_message(
-                sdb, session_id=session_id, role="user", content=body.message
-            )
-            await sdb.commit()
-
-        try:
-            from src.java_ast_graphrag.graphrag.query_analyzer import analyze_query
-            from src.java_ast_graphrag.pipeline import run_java_graphrag
-
-            analysis = await analyze_query(body.message or "")
-
-            INTENT_TO_TOOL = {
-                "METHOD_EXPLAIN": "code_explain",
-                "CALL_CHAIN": "graph_search",
-                "IMPACT_ANALYSIS": "impact_assess",
-                "DEPENDENCY_MAP": "graph_search",
-                "CODE_SMELL": "refactor_suggest",
-                "REFACTOR_GUIDE": "refactor_suggest",
-            }
-            tool = INTENT_TO_TOOL.get(analysis.intent, "code_explain")
-
-            result = await run_java_graphrag(body.message or "", tool=tool)
-            response_text = result.get("result") or result.get("assembled_context") or ""
-
-            if response_text:
-                async with AsyncSessionLocal() as sdb:
-                    await repo.save_message(
-                        sdb, session_id=session_id, role="assistant", content=response_text
-                    )
-                    await sdb.commit()
-                yield f"data: {json.dumps({'type': 'text', 'content': response_text}, ensure_ascii=False)}\n\n"
-                yield f"data: {json.dumps({'type': 'end', 'usage': {}})}\n\n"
-            else:
-                yield f"data: {json.dumps({'type': 'error', 'message': 'Java GraphRAG produced no output.'}, ensure_ascii=False)}\n\n"
-
-        except Exception as e:
-            logger.error("Java GraphRAG error: %s", e)
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
-
-    # Java GraphRAG 분기 (ITSM보다 먼저 체크)
-    if _should_route_to_java_graph(body.message or ""):
-        return StreamingResponse(
-            java_graph_event_generator(),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-        )
 
     # 일반 질문은 Agent(HITL) 경로를 타지 않도록 분기
     if not _should_route_to_agent(body.message or ""):

@@ -65,3 +65,5 @@ slowapi==0.1.9
 
 # Scheduler (file expiry)
 apscheduler==3.10.4
+requests>=2.31.0
+python-dotenv>=1.0.0

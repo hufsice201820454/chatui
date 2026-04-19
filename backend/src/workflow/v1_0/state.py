@@ -13,9 +13,16 @@ class AgentState(TypedDict, total=False):
     user_query: str
     parsed_docs: Optional[str]          # MCP 문서 파싱 결과 등 추가 컨텍스트
 
+    # LangGraph 체크포인트 격리용 thread_id (run_agent에 의해 주입됨)
+    # - outer(ITSM)와 inner(code_review)의 동일한 thread_id를 사용해 HITL 재개를 이어갑니다.
+    thread_id: Optional[str]
+
     # Intent (1차)
-    intent: Literal["agent", "general"]
+    intent: Literal["code_change", "code_review", "support"]
     intent_confidence: float
+    intent_reason: str
+    intent_source: Literal["rule", "llm", "fallback_rule"]
+    intent_signals: List[str]
 
     # RAG 판단 (2차)
     use_rag: bool
@@ -39,6 +46,7 @@ class AgentState(TypedDict, total=False):
     # 최종
     final_response: str
     action_taken: str
+
 
     # VDB 적재용 (6차)
     repo_info: str

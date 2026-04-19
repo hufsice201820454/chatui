@@ -21,7 +21,7 @@ from log_config import setup_logging
 from src.core.middleware import RequestContextMiddleware
 from src.datasource.sqlite.sqlite import init_db
 
-from src.api.routes import chat, sessions, files, tools, health, models, agent_chat, java_graph
+from src.api.routes import chat, sessions, files, tools, health, models, agent_chat, admin_ingestion
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -45,12 +45,6 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down")
     _stop_scheduler()
-    try:
-        from src.java_ast_graphrag.neo4j.client import close_neo4j_driver
-
-        close_neo4j_driver()
-    except Exception:
-        pass
 
 
 def _register_builtin_tools() -> None:
@@ -154,7 +148,7 @@ app.include_router(files.router, prefix="/api/v1")
 app.include_router(tools.router, prefix="/api/v1")
 app.include_router(models.router, prefix="/api/v1")
 app.include_router(agent_chat.router, prefix="/api/v1")
-app.include_router(java_graph.router, prefix="/api/v1")
+app.include_router(admin_ingestion.router, prefix="/api/v1")
 
 
 # ---------------------------------------------------------------------------

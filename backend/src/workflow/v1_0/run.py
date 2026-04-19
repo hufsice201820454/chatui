@@ -90,6 +90,9 @@ async def run_agent(
         "user_query": user_query,
         "parsed_docs": parsed_docs,
         "reject_count": 0,
+        # outer thread_id를 상태에 포함해 code_review_run에서 inner 코드리뷰 그래프의
+        # 동일 checkpoint(thread_id)로 재개할 수 있게 합니다.
+        "thread_id": thread_id,
     }
 
     try:
@@ -175,8 +178,11 @@ def _build_response(
         "draft_response": result.get("draft_response") or "",
         "final_response": result.get("final_response") or "",
         "action_taken": result.get("action_taken") or "",
-        "intent": result.get("intent") or "general",
+        "intent": result.get("intent") or "support",
         "intent_confidence": result.get("intent_confidence") or 0.0,
+        "intent_reason": result.get("intent_reason") or "",
+        "intent_source": result.get("intent_source") or "fallback_rule",
+        "intent_signals": result.get("intent_signals") or [],
         "use_rag": result.get("use_rag") or False,
         "rag_reason": result.get("rag_reason") or "",
         "reject_count": result.get("reject_count") or 0,

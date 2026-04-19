@@ -122,7 +122,7 @@ class OpenAIProvider(BaseLLMProvider):
             all_messages.extend(_to_openai_messages(messages))
 
             params: dict[str, Any] = dict(
-                model=kwargs.get("model", self._model),
+                model=kwargs.get("model") or self._model,
                 max_tokens=kwargs.get("max_tokens", self._max_tokens),
                 messages=all_messages,
             )
@@ -174,7 +174,7 @@ class OpenAIProvider(BaseLLMProvider):
             all_messages.extend(_to_openai_messages(messages))
 
             params: dict[str, Any] = dict(
-                model=kwargs.get("model", self._model),
+                model=kwargs.get("model") or self._model,
                 max_tokens=kwargs.get("max_tokens", self._max_tokens),
                 messages=all_messages,
                 stream=True,

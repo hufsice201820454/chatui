@@ -11,16 +11,22 @@ class Embedder(OpenAIEmbedding):
     """
 
     def __init__(self, model_name: str | None = None):
-        api_key = getattr(settings, "OPENAI_API_KEY", None) or getattr(
-            settings, "OPEN_API_KEY", None
+        api_key = (
+            getattr(settings, "API_KEY", None)
+            or getattr(settings, "OPENAI_API_KEY", None)
+            or getattr(settings, "OPEN_API_KEY", None)
         )
-        base_url = getattr(settings, "OPEN_BASE_URL", None)
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY or OPEN_API_KEY is not set in .env")
+        base_url = (
+            getattr(settings, "BASE_URL", None)
+            or getattr(settings, "OPEN_BASE_URL", None)
+        )
+        if not api_key or not base_url:
+            raise ValueError("API_KEY/BASE_URL (or OPENAI_API_KEY/OPEN_BASE_URL) is required")
         super().__init__(
             api_key=api_key,
             base_url=base_url,
-            base_model=model_name or "text-embedding-3-small",
-            tiktoken_enabled=True,
+            base_model=model_name or "bge-m3",
+            tiktoken_enabled=False,
+            dimensions=1024,
         )
 
