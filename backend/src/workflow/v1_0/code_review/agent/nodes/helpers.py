@@ -16,18 +16,41 @@ _provider = OpenAIProvider()
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+def _child_env() -> dict[str, str]:
+    """자식 MCP 프로세스에 전달할 환경변수.
+
+    sonarqube_server.py / neo4j_server.py 는 'from config.settings import ...' 를
+    사용하는데, 실제 config 패키지는 _PROJECT_ROOT(code_review/) 아래에 있다.
+    PYTHONPATH 에 해당 경로를 추가해야 자식 프로세스가 import 에 성공한다.
+    """
+    env = {k: v for k, v in os.environ.items() if isinstance(v, str)}
+    existing = env.get("PYTHONPATH", "")
+    extra = _PROJECT_ROOT
+    env["PYTHONPATH"] = f"{extra}{os.pathsep}{existing}" if existing else extra
+    return env
+
+
 async def _call_mcp_tool(server_script: str, tool_name: str, arguments: dict) -> Any:
     """MCP stdio 서버에 연결하여 tool을 호출하고 결과를 반환합니다."""
     server_path = os.path.join(_PROJECT_ROOT, server_script)
     server_params = StdioServerParameters(
         command=sys.executable,
         args=[server_path],
+        cwd=_PROJECT_ROOT,
+        env=_child_env(),
     )
 
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
             result = await session.call_tool(tool_name, arguments=arguments)
+            if result.isError:
+                texts = [
+                    getattr(b, "text", "")
+                    for b in (result.content or [])
+                    if getattr(b, "type", None) == "text"
+                ]
+                return {"error": " ".join(texts).strip() or f"MCP tool error: {tool_name}"}
             if result.content and len(result.content) > 0:
                 content = result.content[0]
                 if hasattr(content, "text"):
