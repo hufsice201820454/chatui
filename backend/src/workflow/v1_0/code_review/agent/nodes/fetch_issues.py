@@ -19,7 +19,7 @@ _RETRY_DELAY = 2  # 재시도 대기 시간(초)
 def _fetch_issues_once(project_key: str, created_after: str) -> dict:
     """SonarQube 이슈 목록을 1회 조회합니다."""
     return call_mcp(
-        "../../../../mcp_service/mcp_servers/sonarqube_server.py",
+        "../../../../mcp_service/tools/sonarqube_server.py",
         "sonarqube_get_issues",
         {"project_key": project_key, "created_after": created_after},
     )
@@ -86,7 +86,7 @@ def fetch_issues(state: AgentState) -> AgentState:
     rules = {}
     for rule_key in unique_rule_keys:
         rule_result = call_mcp(
-            "../../../../mcp_service/mcp_servers/sonarqube_server.py",
+            "../../../../mcp_service/tools/sonarqube_server.py",
             "sonarqube_get_rule",
             {"rule_key": rule_key},
         )

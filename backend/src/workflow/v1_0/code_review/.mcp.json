@@ -2,12 +2,12 @@
   "mcpServers": {
     "sonarqube": {
       "command": "python",
-      "args": ["../../../../mcp_service/mcp_servers/sonarqube_server.py"],
+      "args": ["../../../../mcp_service/tools/sonarqube_server.py"],
       "env": {}
     },
     "neo4j": {
       "command": "python",
-      "args": ["../../../../mcp_service/mcp_servers/neo4j_server.py"],
+      "args": ["../../../../mcp_service/tools/neo4j_server.py"],
       "env": {}
     }
   }

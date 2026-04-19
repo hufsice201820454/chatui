@@ -12,7 +12,7 @@ from src.core.llm.openai_provider import OpenAIProvider
 
 _provider = OpenAIProvider()
 
-# 프로젝트 루트 경로 (mcp_servers/ 위치 기준)
+# code_review 패키지 루트 (상대 경로는 mcp_service/tools/*.py stdio 스크립트 기준)
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 

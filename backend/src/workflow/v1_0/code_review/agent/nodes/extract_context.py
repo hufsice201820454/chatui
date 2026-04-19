@@ -13,7 +13,7 @@ from agent.nodes.helpers import call_mcp
 
 logger = logging.getLogger(__name__)
 
-_NEO4J_SERVER = "../../../../mcp_service/mcp_servers/neo4j_server.py"
+_NEO4J_SERVER = "../../../../mcp_service/tools/neo4j_server.py"
 
 
 def _is_connection_error(result: dict) -> bool:
