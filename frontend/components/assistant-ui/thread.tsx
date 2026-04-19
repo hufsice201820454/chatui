@@ -128,6 +128,14 @@ const AssistantBubble: FC<{ content: string }> = ({ content }) => (
           ul: ({ ...props }) => <ul className="aui-md-ul my-2 ml-4 list-disc marker:text-muted-foreground [&>li]:mt-1" {...props} />,
           ol: ({ ...props }) => <ol className="aui-md-ol my-2 ml-4 list-decimal marker:text-muted-foreground [&>li]:mt-1" {...props} />,
           li: ({ ...props }) => <li className="aui-md-li leading-normal" {...props} />,
+          table: ({ ...props }) => (
+            <div className="aui-md-table-wrapper my-2 w-full overflow-x-auto">
+              <table className="aui-md-table w-full border-separate border-spacing-0" {...props} />
+            </div>
+          ),
+          th: ({ ...props }) => <th className="aui-md-th bg-muted px-2 py-1 text-left font-medium first:rounded-tl-lg last:rounded-tr-lg" {...props} />,
+          td: ({ ...props }) => <td className="aui-md-td border-muted-foreground/20 border-b border-l px-2 py-1 text-left last:border-r" {...props} />,
+          tr: ({ ...props }) => <tr className="aui-md-tr m-0 border-b p-0 first:border-t [&:last-child>td:first-child]:rounded-bl-lg [&:last-child>td:last-child]:rounded-br-lg" {...props} />,
         }}
       >
         {content}
@@ -179,7 +187,7 @@ export const Thread: FC = () => {
 
       <ThreadPrimitive.Viewport
         turnAnchor="top"
-        className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
+        className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-hidden overflow-y-scroll scroll-smooth px-4 pt-4"
       >
         <AuiIf condition={(s) => s.thread.isEmpty}>
           <ThreadWelcome />
