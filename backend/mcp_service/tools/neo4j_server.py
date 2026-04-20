@@ -19,16 +19,31 @@
 """
 import sys
 import os
+import traceback
 
 _backend_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(_backend_root, "src", "workflow", "v1_0", "code_review"))
 
+_LOG_FILE = os.path.join(_backend_root, "neo4j_mcp_debug.log")
+
+
+def _log(msg: str) -> None:
+    with open(_LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(msg + "\n")
+        f.flush()
+
+
+_log(f"[neo4j_server] 시작 — sys.path[0]={sys.path[0]}")
+
 try:
     from mcp.server.fastmcp import FastMCP
+    _log("[neo4j_server] FastMCP import OK")
     from neo4j import GraphDatabase
+    _log("[neo4j_server] neo4j import OK")
     from config.settings import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+    _log(f"[neo4j_server] config import OK — URI={NEO4J_URI}")
 except Exception as _import_err:
-    print(f"[neo4j_server] 시작 실패 — import 오류: {_import_err}", file=sys.stderr, flush=True)
+    _log(f"[neo4j_server] import 실패:\n{traceback.format_exc()}")
     raise
 
 mcp = FastMCP("neo4j")
