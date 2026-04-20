@@ -1,6 +1,7 @@
 """MCP 클라이언트 헬퍼 및 공유 OpenAI 클라이언트"""
 import json
 import asyncio
+import logging
 import sys
 import os
 from typing import Any
@@ -10,6 +11,8 @@ from mcp.client.stdio import stdio_client
 
 from src.core.llm.openai_provider import OpenAIProvider
 
+logger = logging.getLogger(__name__)
+
 _provider = OpenAIProvider()
 
 # code_review 패키지 루트 (상대 경로는 mcp_service/tools/*.py stdio 스크립트 기준)
@@ -18,7 +21,10 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 async def _call_mcp_tool(server_script: str, tool_name: str, arguments: dict) -> Any:
     """MCP stdio 서버에 연결하여 tool을 호출하고 결과를 반환합니다."""
-    server_path = os.path.join(_PROJECT_ROOT, server_script)
+    server_path = os.path.realpath(os.path.join(_PROJECT_ROOT, server_script))
+    logger.debug("[MCP] server_path=%s exists=%s", server_path, os.path.exists(server_path))
+    if not os.path.exists(server_path):
+        raise FileNotFoundError(f"MCP 서버 스크립트를 찾을 수 없습니다: {server_path}")
     server_params = StdioServerParameters(
         command=sys.executable,
         args=[server_path],
