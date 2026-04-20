@@ -45,10 +45,16 @@ def extract_code_context(state: AgentState) -> AgentState:
                 "neo4j_get_code_context",
                 {"file_path": file_path, "line_number": line},
             )
-        except Exception as e:
+        except BaseException as e:
+            # ExceptionGroup(anyio TaskGroup) 내부의 실제 원인을 꺼내 로그
+            inner = e
+            while hasattr(inner, "exceptions") and getattr(inner, "exceptions", None):
+                inner = inner.exceptions[0]
             # Neo4j 연결 자체가 불가능한 경우 — 이후 이슈도 조회 불가이므로 루프 중단
             logger.error(
-                "[Node3] Neo4j 연결 오류 — 코드 컨텍스트 없이 분석을 진행합니다. 오류: %s", e,
+                "[Node3] Neo4j 연결 오류 — 코드 컨텍스트 없이 분석을 진행합니다. "
+                "원인: %s: %s",
+                type(inner).__name__, inner,
             )
             # 남은 이슈들도 None 컨텍스트로 채워 Node4로 전달
             code_contexts.append({"issue_key": issue_key, "found": False, "context": None})

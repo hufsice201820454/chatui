@@ -23,9 +23,13 @@ import os
 _backend_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(_backend_root, "src", "workflow", "v1_0", "code_review"))
 
-from mcp.server.fastmcp import FastMCP
-from neo4j import GraphDatabase
-from config.settings import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+try:
+    from mcp.server.fastmcp import FastMCP
+    from neo4j import GraphDatabase
+    from config.settings import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+except Exception as _import_err:
+    print(f"[neo4j_server] 시작 실패 — import 오류: {_import_err}", file=sys.stderr, flush=True)
+    raise
 
 mcp = FastMCP("neo4j")
 
