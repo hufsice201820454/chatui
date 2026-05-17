@@ -294,7 +294,7 @@ export const Assistant = () => {
       api: "/api/chat",
       // 선택한 모델 + 이미지 blob URL → data URL 변환 후 body에 반영 (이미지 분석용)
       prepareSendMessagesRequest: async (optionsEx: any) => {
-        const model = useSessionStore.getState().selectedModel;
+        const { selectedModel: model, productCodeType } = useSessionStore.getState();
         const { messages, images: imagesFromParts, documents: documentsFromParts } = await convertBlobUrlsInMessages(optionsEx.messages ?? []);
         let images = imagesFromParts;
         if (images.length === 0) images = getAndClearPendingChatImages();
@@ -310,6 +310,7 @@ export const Assistant = () => {
           metadata: optionsEx.requestMetadata,
           ...(images.length > 0 ? { images } : {}),
           ...(documents.length > 0 ? { documents } : {}),
+          ...(productCodeType ? { productCodeType } : {}),
         };
         return { ...optionsEx, body };
       },

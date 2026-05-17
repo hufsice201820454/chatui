@@ -170,15 +170,18 @@ export async function POST(req: Request) {
     const sessionId = await getOrCreateSession(threadId, userText || "New Chat");
 
     const model = body.model as string | undefined;
+    const productCodeType = body.productCodeType as string | undefined;
 
     const chatBody: {
       message: string;
       model?: string;
       images?: { mime: string; data: string }[];
       documents?: { mime: string; data: string; filename?: string }[];
+      product_code_type?: string;
     } = {
       message: userText,
       ...(model ? { model } : {}),
+      ...(productCodeType ? { product_code_type: productCodeType } : {}),
     };
     if (images.length > 0) chatBody.images = images;
     if (documents.length > 0) chatBody.documents = documents;

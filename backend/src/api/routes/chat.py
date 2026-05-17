@@ -23,6 +23,7 @@ from mcp_service.client import (
     call_image_parse_via_mcp,
     call_parse_document_via_mcp,
 )
+from src.utils.product_code_parsers import parse_product_code_image
 from src.rag.bootstrap import get_rag_pipeline
 from src.workflow import (
     HIGH_CONFIDENCE_KEYWORDS,
@@ -64,12 +65,14 @@ class ChatRequest(BaseModel):
     model: Optional[str] = None  # 선택 모델 (없으면 config 기본값)
     images: Optional[List[ImagePayload]] = None  # 채팅 첨부 이미지 (첫 장만 Vision 파싱)
     documents: Optional[List[DocumentPayload]] = None  # PDF/DOCX/XLSX (MCP 문서 파서)
+    product_code_type: Optional[str] = None  # Product Code 전용 파싱: "mm" | "hybrid"
 
 
 async def _build_user_content(
     message: str,
     images: Optional[List[ImagePayload]] = None,
     documents: Optional[List[DocumentPayload]] = None,
+    product_code_type: Optional[str] = None,
 ) -> str:
     """문서/이미지 MCP 분석 결과와 사용자 메시지를 합쳐 user_content 생성 (일반 채팅용)."""
     parts: list[str] = []
@@ -108,11 +111,18 @@ async def _build_user_content(
     if images and len(images) > 0:
         img = images[0]
         try:
-            vision_text = await call_image_parse_via_mcp(
-                image_base64=img.data,
-                mime=img.mime,
-                user_query=message or "",
-            )
+            if product_code_type and product_code_type in ("mm", "hybrid"):
+                vision_text = await parse_product_code_image(
+                    image_b64=img.data,
+                    mime=img.mime,
+                    product_code_type=product_code_type,
+                )
+            else:
+                vision_text = await call_image_parse_via_mcp(
+                    image_base64=img.data,
+                    mime=img.mime,
+                    user_query=message or "",
+                )
             if len(vision_text) > MAX_VISION_CONTEXT_CHARS:
                 vision_text = vision_text[:MAX_VISION_CONTEXT_CHARS] + "\n\n...(이하 생략)"
             parts.append(f"[이미지 분석 결과]\n{vision_text}")
@@ -225,6 +235,7 @@ async def chat_stream_endpoint(
             body.message or "",
             images=body.images,
             documents=body.documents,
+            product_code_type=body.product_code_type,
         )
         return StreamingResponse(
             chat_stream(
@@ -307,6 +318,7 @@ async def chat_complete(
         body.message or "",
         images=body.images,
         documents=body.documents,
+        product_code_type=body.product_code_type,
     )
 
     db_history = await repo.get_recent_messages_for_context(db, session_id)

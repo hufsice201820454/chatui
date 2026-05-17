@@ -40,12 +40,16 @@ type SessionStore = {
   /** ITSM Agent HITL 상태 (비-영속) */
   hitlState: HitlState | null;
 
+  /** Product Code 파싱 타입 선택: "" | "mm" | "hybrid" (비-영속) */
+  productCodeType: "" | "mm" | "hybrid";
+
   setCustomTitle: (threadId: string, title: string) => void;
   setThreadSession: (threadId: string, sessionId: string) => void;
   setSearchQuery: (q: string) => void;
   setSelectedModel: (model: string) => void;
   getSessionId: (threadId: string) => string | undefined;
   setCurrentAuiThreadId: (id: string) => void;
+  setProductCodeType: (t: "" | "mm" | "hybrid") => void;
 
   /** HITL 상태 설정 (interrupted 단계) */
   setHitlInterrupted: (state: Omit<HitlState, "status" | "resume_messages">) => void;
@@ -66,6 +70,7 @@ export const useSessionStore = create<SessionStore>()(
       selectedModel: "",
       currentAuiThreadId: "",
       hitlState: null,
+      productCodeType: "",
 
       setCustomTitle: (threadId, title) =>
         set((s) => ({
@@ -84,6 +89,8 @@ export const useSessionStore = create<SessionStore>()(
       getSessionId: (threadId) => get().threadSessions[threadId],
 
       setCurrentAuiThreadId: (id) => set({ currentAuiThreadId: id }),
+
+      setProductCodeType: (t) => set({ productCodeType: t }),
 
       setHitlInterrupted: (state) =>
         set({

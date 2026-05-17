@@ -22,6 +22,7 @@ import {
   SuggestionPrimitive,
   ThreadPrimitive,
   useAuiEvent,
+  useAuiState,
 } from "@assistant-ui/react";
 import { useSessionStore } from "@/stores/session-store";
 import { HitlPanel } from "@/components/chat/hitl-panel";
@@ -114,7 +115,7 @@ const ThreadChangeWatcher: FC = () => {
  */
 const AssistantBubble: FC<{ content: string }> = ({ content }) => (
   <div
-    className="aui-assistant-message-root fade-in slide-in-from-bottom-1 relative mx-auto w-full max-w-(--thread-max-width) animate-in py-3 duration-150"
+    className="aui-assistant-message-root fade-in slide-in-from-bottom-1 relative mr-auto ml-0 w-full max-w-[72%] animate-in py-3 duration-150"
     data-role="assistant"
   >
     <div className="aui-assistant-message-content aui-md wrap-break-word px-2 text-foreground leading-relaxed">
@@ -179,7 +180,7 @@ export const Thread: FC = () => {
     <ThreadPrimitive.Root
       className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
       style={{
-        ["--thread-max-width" as string]: "44rem",
+        ["--thread-max-width" as string]: "52rem",
       }}
     >
       <HitlPoller />
@@ -187,7 +188,7 @@ export const Thread: FC = () => {
 
       <ThreadPrimitive.Viewport
         turnAnchor="top"
-        className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-hidden overflow-y-scroll scroll-smooth px-4 pt-4"
+        className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-hidden overflow-y-scroll scroll-smooth px-6 pt-4"
       >
         <AuiIf condition={(s) => s.thread.isEmpty}>
           <ThreadWelcome />
@@ -309,8 +310,16 @@ const Composer: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
 const DEFAULT_MODEL = "gpt-4o-mini";
 
 const ComposerAction: FC = () => {
-  const { selectedModel, setSelectedModel } = useSessionStore();
+  const { selectedModel, setSelectedModel, productCodeType, setProductCodeType } = useSessionStore();
   const [models, setModels] = useState<string[]>([DEFAULT_MODEL]);
+
+  // 현재 composer에 이미지 첨부 여부 감지
+  const hasImageAttachment = useAuiState(
+    (s: any) => {
+      const attachments: any[] = (s.composer ?? s.thread?.composer)?.attachments ?? [];
+      return attachments.some((a: any) => a.contentType?.startsWith("image/") || a.type === "image");
+    }
+  );
 
   useEffect(() => {
     fetch("/api/models")
@@ -330,52 +339,111 @@ const ComposerAction: FC = () => {
   }, []);
 
   const currentModel = selectedModel || models[0];
+  const needsTypeSelection = hasImageAttachment && !productCodeType;
 
   return (
-    <div className="aui-composer-action-wrapper relative mx-2 mb-2 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <ComposerAddAttachment />
-        <select
-          value={currentModel}
-          onChange={(e) => setSelectedModel(e.target.value)}
-          className="aui-model-select h-8 min-w-[8rem] rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-ring"
-          aria-label="모델 선택"
-        >
-          {models.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
-      </div>
-      <AuiIf condition={(s) => !s.thread.isRunning}>
-        <ComposerPrimitive.Send asChild>
-          <TooltipIconButton
-            tooltip="Send message"
-            side="bottom"
-            type="submit"
-            variant="default"
-            size="icon"
-            className="aui-composer-send size-8 rounded-full"
-            aria-label="Send message"
-          >
-            <ArrowUpIcon className="aui-composer-send-icon size-4" />
-          </TooltipIconButton>
-        </ComposerPrimitive.Send>
-      </AuiIf>
-      <AuiIf condition={(s) => s.thread.isRunning}>
-        <ComposerPrimitive.Cancel asChild>
-          <Button
+    <div className="aui-composer-action-wrapper relative mx-2 mb-2 flex flex-col gap-1.5">
+      {/* Product Code 타입 경고 배너 */}
+      {needsTypeSelection && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+          <span className="font-medium">Product Code 이미지 감지됨.</span>
+          <span>분석 타입을 선택해주세요 →</span>
+          <button
             type="button"
-            variant="default"
-            size="icon"
-            className="aui-composer-cancel size-8 rounded-full"
-            aria-label="Stop generating"
+            onClick={() => setProductCodeType("mm")}
+            className="rounded-md bg-amber-200 px-2 py-0.5 font-semibold hover:bg-amber-300 dark:bg-amber-800 dark:hover:bg-amber-700"
           >
-            <SquareIcon className="aui-composer-cancel-icon size-3 fill-current" />
-          </Button>
-        </ComposerPrimitive.Cancel>
-      </AuiIf>
+            MM
+          </button>
+          <button
+            type="button"
+            onClick={() => setProductCodeType("hybrid")}
+            className="rounded-md bg-amber-200 px-2 py-0.5 font-semibold hover:bg-amber-300 dark:bg-amber-800 dark:hover:bg-amber-700"
+          >
+            Hybrid
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ComposerAddAttachment />
+          <select
+            value={currentModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="aui-model-select h-8 min-w-[8rem] rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-ring"
+            aria-label="모델 선택"
+          >
+            {models.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+
+          {/* Product Code 타입 셀렉터 */}
+          <div className="flex items-center gap-1 rounded-md border border-input bg-background px-1.5 py-1">
+            <span className="mr-0.5 text-xs text-muted-foreground">PC</span>
+            <button
+              type="button"
+              onClick={() => setProductCodeType(productCodeType === "mm" ? "" : "mm")}
+              className={cn(
+                "h-6 rounded px-2 text-xs font-medium transition-colors",
+                productCodeType === "mm"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+              title="MM 타입 Product Code 분석"
+            >
+              MM
+            </button>
+            <button
+              type="button"
+              onClick={() => setProductCodeType(productCodeType === "hybrid" ? "" : "hybrid")}
+              className={cn(
+                "h-6 rounded px-2 text-xs font-medium transition-colors",
+                productCodeType === "hybrid"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+              title="Hybrid 타입 Product Code 분석"
+            >
+              Hybrid
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <AuiIf condition={(s) => !s.thread.isRunning}>
+            <ComposerPrimitive.Send asChild>
+              <TooltipIconButton
+                tooltip="Send message"
+                side="bottom"
+                type="submit"
+                variant="default"
+                size="icon"
+                className="aui-composer-send size-8 rounded-full"
+                aria-label="Send message"
+              >
+                <ArrowUpIcon className="aui-composer-send-icon size-4" />
+              </TooltipIconButton>
+            </ComposerPrimitive.Send>
+          </AuiIf>
+          <AuiIf condition={(s) => s.thread.isRunning}>
+            <ComposerPrimitive.Cancel asChild>
+              <Button
+                type="button"
+                variant="default"
+                size="icon"
+                className="aui-composer-cancel size-8 rounded-full"
+                aria-label="Stop generating"
+              >
+                <SquareIcon className="aui-composer-cancel-icon size-3 fill-current" />
+              </Button>
+            </ComposerPrimitive.Cancel>
+          </AuiIf>
+        </div>
+      </div>
     </div>
   );
 };
@@ -393,7 +461,7 @@ const MessageError: FC = () => {
 const AssistantMessage: FC = () => {
   return (
     <MessagePrimitive.Root
-      className="aui-assistant-message-root fade-in slide-in-from-bottom-1 relative mx-auto w-full max-w-(--thread-max-width) animate-in py-3 duration-150"
+      className="aui-assistant-message-root fade-in slide-in-from-bottom-1 relative mr-auto ml-0 w-full max-w-[72%] animate-in py-3 duration-150"
       data-role="assistant"
     >
       <div className="aui-assistant-message-content wrap-break-word px-2 text-foreground leading-relaxed">
@@ -468,7 +536,7 @@ const AssistantActionBar: FC = () => {
 const UserMessage: FC = () => {
   return (
     <MessagePrimitive.Root
-      className="aui-user-message-root fade-in slide-in-from-bottom-1 mx-auto grid w-full max-w-(--thread-max-width) animate-in auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2 px-2 py-3 duration-150 [&:where(>*)]:col-start-2"
+      className="aui-user-message-root fade-in slide-in-from-bottom-1 ml-auto mr-0 grid w-full max-w-[72%] animate-in auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2 px-2 py-3 duration-150 [&:where(>*)]:col-start-2"
       data-role="user"
     >
       <UserMessageAttachments />
