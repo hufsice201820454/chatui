@@ -5,6 +5,7 @@
  *
  * 동작:
  * - hitlState.status === "interrupted" 이면 버튼 표시
+ * - channel_id_prompt === true 이면 Cube 채널 번호 입력 전용 UI 표시
  * - resume 후 interrupted 반복 가능 (최대 3회 reject)
  * - completed 이후 서버-사이드 hitlStateMap 정리
  *
@@ -14,7 +15,7 @@
 import { useState, useEffect, type FC } from "react";
 import { useSessionStore } from "@/stores/session-store";
 import { Button } from "@/components/ui/button";
-import { CheckIcon, PencilIcon, XIcon, Loader2Icon } from "lucide-react";
+import { CheckIcon, PencilIcon, XIcon, Loader2Icon, SendIcon } from "lucide-react";
 
 interface HitlPanelProps {
   /** AUI thread_id (서버-사이드 Map 정리에 사용) */
@@ -29,6 +30,7 @@ export const HitlPanel: FC<HitlPanelProps> = ({ auiThreadId }) => {
   const [uiMode, setUiMode] = useState<"buttons" | "edit" | "reject">("buttons");
   const [editText, setEditText] = useState("");
   const [rejectReason, setRejectReason] = useState("");
+  const [channelId, setChannelId] = useState("");
 
   // hitlState가 새로운 스레드로 바뀌면 UI 초기화
   const hitlThreadId = hitlState?.thread_id;
@@ -36,6 +38,7 @@ export const HitlPanel: FC<HitlPanelProps> = ({ auiThreadId }) => {
     setUiMode("buttons");
     setEditText("");
     setRejectReason("");
+    setChannelId("");
   }, [hitlThreadId]);
 
   if (!hitlState) return null;
@@ -69,7 +72,7 @@ export const HitlPanel: FC<HitlPanelProps> = ({ auiThreadId }) => {
       let newDraft = "";
       let newThreadId = hitlState.thread_id;
       let rejectCount = hitlState.reject_count ?? 0;
-      let isInterrupted = false;
+      let isInterruptedNext = false;
 
       if (reader) {
         while (true) {
@@ -86,7 +89,7 @@ export const HitlPanel: FC<HitlPanelProps> = ({ auiThreadId }) => {
                 if (event.type === "text") {
                   finalText += (event.content as string) ?? "";
                 } else if (event.type === "hitl_request") {
-                  isInterrupted = true;
+                  isInterruptedNext = true;
                   newDraft = (event.draft_response as string) ?? "";
                   newThreadId = (event.thread_id as string) ?? newThreadId;
                   rejectCount = (event.reject_count as number) ?? rejectCount + 1;
@@ -97,7 +100,7 @@ export const HitlPanel: FC<HitlPanelProps> = ({ auiThreadId }) => {
         }
       }
 
-      if (isInterrupted) {
+      if (isInterruptedNext) {
         addHitlResumeMessage({ type: "draft", content: newDraft });
         setHitlInterrupted({
           thread_id: newThreadId,
@@ -120,13 +123,62 @@ export const HitlPanel: FC<HitlPanelProps> = ({ auiThreadId }) => {
       setLoading(false);
       setEditText("");
       setRejectReason("");
+      setChannelId("");
     }
   };
 
   return (
     <div className="mx-auto w-full max-w-[var(--thread-max-width,44rem)] space-y-2 px-2 pb-2">
-      {/* HITL 액션 영역 */}
-      {isInterrupted && (
+      {/* 코드 리뷰 Cube 채널 번호 입력 전용 UI */}
+      {isInterrupted && hitlState.channel_id_prompt && (
+        <div className="rounded-xl border bg-background p-3 shadow-sm space-y-2">
+          <p className="text-sm font-medium">Cube 채널로 분석 결과를 전송하시겠습니까?</p>
+          <p className="text-xs text-muted-foreground">
+            채널 번호를 입력하고 <strong>전송</strong> 버튼을 클릭하세요. 전송을 원하지 않으시면 <strong>건너뜀</strong>을 클릭하세요.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={channelId}
+              onChange={(e) => setChannelId(e.target.value)}
+              disabled={loading}
+              placeholder="Cube 채널 번호 입력"
+              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && channelId.trim() && !loading) {
+                  resume("edit", channelId.trim());
+                }
+              }}
+            />
+            <Button
+              size="sm"
+              disabled={loading || !channelId.trim()}
+              onClick={() => resume("edit", channelId.trim())}
+              className="gap-1.5"
+            >
+              {loading ? (
+                <Loader2Icon className="size-3.5 animate-spin" />
+              ) : (
+                <SendIcon className="size-3.5" />
+              )}
+              전송
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={loading}
+              onClick={() => resume("approve")}
+              className="gap-1.5"
+            >
+              {loading && <Loader2Icon className="size-3.5 animate-spin" />}
+              건너뜀
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 일반 ITSM HITL 액션 영역 */}
+      {isInterrupted && !hitlState.channel_id_prompt && (
         <div className="rounded-xl border bg-background p-3 shadow-sm space-y-2">
           <p className="text-xs text-muted-foreground">
             위 초안을 검토하고 처리 방법을 선택하세요.
@@ -246,7 +298,6 @@ export const HitlPanel: FC<HitlPanelProps> = ({ auiThreadId }) => {
           )}
         </div>
       )}
-
     </div>
   );
 };

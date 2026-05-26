@@ -119,6 +119,12 @@ async def run_agent(
             result = partial
             status = "completed"
 
+    # interrupt payload 에서 draft_response 보완 (code_review 등 inner interrupt 경우)
+    if status == "interrupted" and not result.get("draft_response"):
+        draft = _extract_interrupt_draft(graph, config)
+        if draft:
+            result = {**result, "draft_response": draft}
+
     return _build_response(thread_id, status, result)
 
 
@@ -161,6 +167,12 @@ async def resume_agent(
             result = partial
             status = "completed"
 
+    # interrupt payload 에서 draft_response 보완
+    if status == "interrupted" and not result.get("draft_response"):
+        draft = _extract_interrupt_draft(graph, config)
+        if draft:
+            result = {**result, "draft_response": draft}
+
     response = _build_response(thread_id, status, result)
     response["hitl_action"] = result.get("hitl_action") or action
     return response
@@ -196,6 +208,41 @@ def _is_interrupt(exc: Exception) -> bool:
     return exc_type in ("GraphInterrupt", "NodeInterrupt") or (
         "interrupt" in exc_type.lower()
     )
+
+
+def _extract_interrupt_draft(graph: Any, config: dict[str, Any]) -> str:
+    """interrupt payload 에서 draft_response 를 추출합니다.
+
+    LangGraph 버전에 따라 snap.tasks[].interrupts 에 저장됩니다.
+    """
+    try:
+        snap = graph.get_state(config)
+        if snap is None:
+            return ""
+        tasks = getattr(snap, "tasks", ()) or ()
+        for task in tasks:
+            interrupts = getattr(task, "interrupts", ()) or ()
+            if interrupts:
+                val = interrupts[0].value
+                if isinstance(val, dict):
+                    return str(val.get("draft_response", ""))
+    except Exception:
+        pass
+    return ""
+
+
+def _extract_interrupt_draft_from_raw(raw: Any) -> str:
+    """ainvoke 반환값의 __interrupt__ 키에서 draft_response 를 추출합니다."""
+    if not isinstance(raw, dict):
+        return ""
+    interrupt_list = raw.get(_INTERRUPT_KEY, []) or []
+    try:
+        val = interrupt_list[0].value
+        if isinstance(val, dict):
+            return str(val.get("draft_response", ""))
+    except Exception:
+        pass
+    return ""
 
 
 def _prompt_hitl_action() -> tuple[str, Optional[str]]:

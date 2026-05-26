@@ -77,6 +77,7 @@ const HitlPoller: FC = () => {
           draft_response: data.draft_response,
           final_response: "",
           reject_count: data.reject_count ?? 0,
+          channel_id_prompt: data.channel_id_prompt ?? false,
         });
       }
     } catch {

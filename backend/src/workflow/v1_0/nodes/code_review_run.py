@@ -20,18 +20,40 @@ logger = logging.getLogger(__name__)
 _CODE_REVIEW_ROOT = Path(__file__).resolve().parent.parent / "code_review"
 _PATH_INSERTED = False
 
-# ChatUI HITL(approve/edit/reject)에서 code_review의 "Cube 채널 입력"을 어떻게
-# 해석할지 안내하는 문구입니다. (draft_response에만 추가합니다.)
+# ChatUI HITL에서 code_review의 "Cube 채널 입력"을 어떻게
+# 해석할지 안내하는 문구입니다. (interrupt payload draft_response에만 추가합니다.)
 _HITL_CUBE_CHANNEL_INSTRUCTION_SUFFIX = (
-    "\n\n"
-    "전송을 원하면 `edit`를 선택하고 입력칸에 Cube 채널 번호를 입력하세요. "
-    "approve/reject는 전송을 건너뜁니다."
+    "\n\n---\n"
+    "**Cube 채널로 분석 결과를 전송하시겠습니까?**\n"
+    "아래 입력창에 Cube 채널 번호를 입력하고 **전송** 버튼을 클릭하세요.\n"
+    "전송을 원하지 않으시면 **건너뜀** 버튼을 클릭하세요."
 )
+
 
 def _is_langgraph_interrupt_exception(exc: Exception) -> bool:
     """LangGraph GraphInterrupt / NodeInterrupt 여부를 버전 독립적으로 판단합니다."""
     exc_type = type(exc).__name__
     return exc_type in ("GraphInterrupt", "NodeInterrupt") or ("interrupt" in exc_type.lower())
+
+
+def _get_is_paused(snap: Any) -> bool:
+    """inner 그래프가 interrupt 지점에서 일시 중단되었는지 확인합니다.
+
+    LangGraph 버전에 따라 snap.next 또는 snap.tasks[].interrupts 중 하나에
+    일시 중단 정보가 저장됩니다. 두 가지 방식을 모두 확인합니다.
+    """
+    if snap is None:
+        return False
+    # 표준 방식: snap.next 가 비어 있지 않으면 실행 대기 노드 있음
+    next_nodes = getattr(snap, "next", ())
+    if next_nodes:
+        return True
+    # LangGraph 0.3.x+: tasks 내 interrupts 확인
+    tasks = getattr(snap, "tasks", ())
+    for task in tasks:
+        if getattr(task, "interrupts", ()):
+            return True
+    return False
 
 
 def _ensure_code_review_import_path() -> None:
@@ -122,7 +144,7 @@ def code_review_run(state: AgentState) -> AgentState:
 
             final_answer = (inner_values.get("final_answer") or "").strip()
             validation_message = inner_values.get("validation_message")
-            is_paused = bool(getattr(snap, "next", None))
+            is_paused = _get_is_paused(snap)
 
             # 검증 실패로 끝난 경우(END로 이미 도달)
             if validation_message and not is_paused:
@@ -163,7 +185,7 @@ def code_review_run(state: AgentState) -> AgentState:
                 inner_values, snap = _read_inner_state()
                 final_answer = (inner_values.get("final_answer") or "").strip()
                 validation_message = inner_values.get("validation_message")
-                is_paused = bool(getattr(snap, "next", None))
+                is_paused = _get_is_paused(snap)
 
             # 다시 한 번 검증 실패/완료 분기
             if validation_message and not is_paused:
@@ -183,8 +205,9 @@ def code_review_run(state: AgentState) -> AgentState:
                     "action_taken": "code_review_completed",
                 }
 
-            # inner이 ask_cube_channel에서 중단된 상태이면, ChatUI HITL(approve/edit/reject)로 중계합니다.
-            # approve/reject는 cube 전송 skip, edit는 edit 문자열을 cube_channel로 사용합니다.
+            # inner이 ask_cube_channel에서 중단된 상태이면, ChatUI HITL로 중계합니다.
+            # channel_id_prompt: True → 프론트엔드에서 채널 번호 전용 입력 UI를 표시합니다.
+            # "edit" + edited=채널번호 → cube_channel로 전달, "approve" → 전송 건너뜀
             if not final_answer:
                 final_answer = "코드 리뷰 결과를 생성하지 못했습니다."
 
@@ -193,6 +216,7 @@ def code_review_run(state: AgentState) -> AgentState:
                 {
                     "draft_response": draft_for_prompt,
                     "action_taken": "code_review_cube_channel_prompted",
+                    "channel_id_prompt": True,
                 }
             )
 
@@ -204,23 +228,30 @@ def code_review_run(state: AgentState) -> AgentState:
             cube_channel = edited.strip() or None if action == "edit" else None
 
             # inner 그래프 재개(ask_cube_channel에서 resume)
-            compiled_graph.invoke(Command(resume=cube_channel), config=inner_config)
+            try:
+                compiled_graph.invoke(Command(resume=cube_channel), config=inner_config)
+            except Exception as exc:
+                if not _is_langgraph_interrupt_exception(exc):
+                    raise
+
             inner_values2, _ = _read_inner_state()
 
-            final_answer2 = (inner_values2.get("final_answer") or "").strip()
-            if not final_answer2:
-                final_answer2 = final_answer
-
             cube_send_result = inner_values2.get("cube_send_result") or {}
-            action_taken = (
-                "code_review_cube_sent"
-                if isinstance(cube_send_result, dict) and cube_send_result.get("success")
-                else "code_review_completed"
-            )
+            if isinstance(cube_send_result, dict) and cube_send_result.get("success"):
+                action_taken = "code_review_cube_sent"
+                channel_sent = cube_send_result.get("channel") or cube_channel or ""
+                resume_message = f"✅ Cube 채널 **{channel_sent}**으로 코드 리뷰 결과가 전송되었습니다."
+            elif cube_channel:
+                action_taken = "code_review_completed"
+                err = cube_send_result.get("error", "") if isinstance(cube_send_result, dict) else ""
+                resume_message = f"⚠️ Cube 채널 전송 중 오류가 발생했습니다.{(' ' + err) if err else ''}"
+            else:
+                action_taken = "code_review_completed"
+                resume_message = ""  # 전송 건너뜀 — 별도 메시지 없음
 
             return {
                 **state,
-                "draft_response": final_answer2,
-                "final_response": final_answer2,
+                "draft_response": resume_message if resume_message else final_answer,
+                "final_response": resume_message if resume_message else final_answer,
                 "action_taken": action_taken,
             }

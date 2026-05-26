@@ -267,7 +267,10 @@ async def chat_stream_endpoint(
 
         if result["status"] == "interrupted":
             draft = result.get("draft_response", "")
-            yield f"data: {json.dumps({'type': 'hitl_request', 'thread_id': result['thread_id'], 'draft_response': draft, 'actions': ['approve', 'reject', 'edit'], 'interrupt_id': result['thread_id']}, ensure_ascii=False)}\n\n"
+            # 코드 리뷰 분석 결과를 채팅창에 먼저 표시 (interrupt payload에 draft가 있는 경우)
+            if draft:
+                yield f"data: {json.dumps({'type': 'text', 'content': draft}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'hitl_request', 'thread_id': result['thread_id'], 'draft_response': draft, 'actions': ['approve', 'reject', 'edit'], 'interrupt_id': result['thread_id'], 'channel_id_prompt': True}, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'type': 'end', 'usage': {}})}\n\n"
             return
 

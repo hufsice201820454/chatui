@@ -14,6 +14,8 @@ export type HitlStateEntry = {
   draft_response: string;
   status: "interrupted";
   reject_count: number;
+  /** true 이면 코드 리뷰 Cube 채널 번호 입력 전용 UI를 표시 */
+  channel_id_prompt?: boolean;
 };
 
 declare global {

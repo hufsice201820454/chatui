@@ -252,11 +252,11 @@ export async function POST(req: Request) {
                     }
                     controller.enqueue(encoder.encode(sseLine({ type: "text-delta", id: TEXT_PART_ID, delta: event.content })));
                   } else if (event.type === "hitl_request") {
-                    // HITL interrupt: draft_response를 텍스트로 표시하고
-                    // 서버-사이드 Map에 HITL 상태 저장 (프론트엔드가 polling으로 감지)
+                    // HITL interrupt: 서버-사이드 Map에 HITL 상태 저장 (프론트엔드가 polling으로 감지)
                     const draft = (event as any).draft_response ?? "";
                     const lgThreadId = (event as any).thread_id ?? threadId;
                     const rejectCount = (event as any).reject_count ?? 0;
+                    const channelIdPrompt = (event as any).channel_id_prompt ?? false;
 
                     // AUI thread_id(threadId)를 키로 HITL 상태 저장
                     hitlStateMap.set(threadId, {
@@ -264,6 +264,7 @@ export async function POST(req: Request) {
                       draft_response: draft,
                       status: "interrupted",
                       reject_count: rejectCount,
+                      channel_id_prompt: channelIdPrompt,
                     });
                   } else if (event.type === "end") {
                     if (textStarted) {

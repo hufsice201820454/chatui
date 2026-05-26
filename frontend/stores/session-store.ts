@@ -23,6 +23,8 @@ export type HitlState = {
   draft_response: string;
   final_response: string;
   reject_count: number;
+  /** true 이면 코드 리뷰 Cube 채널 번호 입력 전용 UI를 표시 */
+  channel_id_prompt?: boolean;
   /** resume 이후 새로 생성된 초안/최종 말풍선 목록 (첫 초안은 @assistant-ui 메시지로 표시되므로 제외) */
   resume_messages: HitlResumeMessage[];
 };
@@ -101,10 +103,13 @@ export const useSessionStore = create<SessionStore>()(
                 ...s.hitlState,
                 status: "completed",
                 final_response: finalResponse,
-                resume_messages: [
-                  ...s.hitlState.resume_messages,
-                  { type: "final", content: finalResponse },
-                ],
+                // 빈 응답이면 말풍선을 추가하지 않음 (전송 건너뜀 등)
+                resume_messages: finalResponse.trim()
+                  ? [
+                      ...s.hitlState.resume_messages,
+                      { type: "final", content: finalResponse },
+                    ]
+                  : s.hitlState.resume_messages,
               }
             : null,
         })),
