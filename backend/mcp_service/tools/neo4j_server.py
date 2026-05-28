@@ -20,7 +20,8 @@
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_backend_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(_backend_root, "src", "workflow", "v1_0", "code_review"))
 
 from mcp.server.fastmcp import FastMCP
 from neo4j import GraphDatabase
