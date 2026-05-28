@@ -1,6 +1,7 @@
 """MCP 클라이언트 헬퍼 및 공유 OpenAI 클라이언트"""
 import json
 import asyncio
+import concurrent.futures
 import sys
 import os
 from typing import Any
@@ -39,17 +40,19 @@ async def _call_mcp_tool(server_script: str, tool_name: str, arguments: dict) ->
 
 
 def run_async(coro) -> Any:
-    """동기 컨텍스트에서 비동기 함수를 실행합니다."""
+    """동기 컨텍스트에서 비동기 함수를 실행합니다.
+
+    ainvoke()의 executor 스레드에서 호출되는 경우, get_running_loop()는
+    RuntimeError를 발생시키므로 asyncio.run()으로 새 루프를 생성해 실행합니다.
+    코루틴에서 직접 호출되는 경우에만 ThreadPoolExecutor를 사용합니다.
+    """
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
-        else:
-            return loop.run_until_complete(coro)
+        asyncio.get_running_loop()
+        # 코루틴/콜백 내부에서 호출된 경우 — 별도 스레드에서 asyncio.run() 실행
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
     except RuntimeError:
+        # 실행 중인 루프 없음 (executor 스레드 또는 순수 동기 컨텍스트)
         return asyncio.run(coro)
 
 
