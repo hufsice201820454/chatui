@@ -190,12 +190,18 @@ def _build_response(
     }
 
 
-def _is_interrupt(exc: Exception) -> bool:
-    """LangGraph GraphInterrupt 여부 확인 (버전 독립적)."""
+def _is_interrupt(exc: BaseException) -> bool:
+    """LangGraph GraphInterrupt 여부 확인 (버전 독립적).
+
+    Python 3.11+에서 asyncio.TaskGroup이 GraphInterrupt를
+    ExceptionGroup으로 래핑하는 경우도 재귀적으로 처리합니다.
+    """
     exc_type = type(exc).__name__
-    return exc_type in ("GraphInterrupt", "NodeInterrupt") or (
-        "interrupt" in exc_type.lower()
-    )
+    if exc_type in ("GraphInterrupt", "NodeInterrupt") or "interrupt" in exc_type.lower():
+        return True
+    if isinstance(exc, BaseExceptionGroup):
+        return all(_is_interrupt(e) for e in exc.exceptions)
+    return False
 
 
 def _prompt_hitl_action() -> tuple[str, Optional[str]]:

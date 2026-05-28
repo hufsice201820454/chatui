@@ -28,10 +28,18 @@ _HITL_CUBE_CHANNEL_INSTRUCTION_SUFFIX = (
     "approve/reject는 전송을 건너뜁니다."
 )
 
-def _is_langgraph_interrupt_exception(exc: Exception) -> bool:
-    """LangGraph GraphInterrupt / NodeInterrupt 여부를 버전 독립적으로 판단합니다."""
+def _is_langgraph_interrupt_exception(exc: BaseException) -> bool:
+    """LangGraph GraphInterrupt / NodeInterrupt 여부를 버전 독립적으로 판단합니다.
+
+    Python 3.11+에서 asyncio.TaskGroup이 GraphInterrupt를
+    ExceptionGroup으로 래핑하는 경우도 재귀적으로 처리합니다.
+    """
     exc_type = type(exc).__name__
-    return exc_type in ("GraphInterrupt", "NodeInterrupt") or ("interrupt" in exc_type.lower())
+    if exc_type in ("GraphInterrupt", "NodeInterrupt") or "interrupt" in exc_type.lower():
+        return True
+    if isinstance(exc, BaseExceptionGroup):
+        return all(_is_langgraph_interrupt_exception(e) for e in exc.exceptions)
+    return False
 
 
 def _ensure_code_review_import_path() -> None:
